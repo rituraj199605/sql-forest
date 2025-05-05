@@ -1,3 +1,4 @@
+// src/context/GameContext.js
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { fetchLevels, fetchUserProgress, updateUserProgress, executeQuery } from '../services/gameService';
 
@@ -14,6 +15,10 @@ export const GameProvider = ({ children }) => {
   const [completedLevels, setCompletedLevels] = useState([]);
   const [animateSuccess, setAnimateSuccess] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [showExplanation, setShowExplanation] = useState(false);
+  const [queryExecutionTime, setQueryExecutionTime] = useState(null);
+  const [executionTimes, setExecutionTimes] = useState({});
+  const [bestTimes, setBestTimes] = useState({});
 
   useEffect(() => {
     // Load levels from API when component mounts
@@ -28,6 +33,7 @@ export const GameProvider = ({ children }) => {
         if (progressData) {
           setCompletedLevels(progressData.completedLevels || []);
           setCurrentLevel(progressData.currentLevel || 1);
+          setBestTimes(progressData.bestTimes || {});
         }
       } catch (error) {
         console.error('Error loading game data:', error);
@@ -47,12 +53,27 @@ export const GameProvider = ({ children }) => {
     if (!currentLevelData) return;
     
     try {
+      // Start the timer
+      const startTime = performance.now();
+      
       const data = await executeQuery(currentLevel, userQuery);
+      
+      // End the timer and calculate execution time
+      const endTime = performance.now();
+      const executionTime = endTime - startTime;
+      setQueryExecutionTime(executionTime);
+      
+      // Update execution times
+      setExecutionTimes(prev => ({
+        ...prev,
+        [currentLevel]: executionTime
+      }));
       
       if (data.success) {
         setQueryResult({
           success: true,
-          data: data.result
+          data: data.result,
+          executionTime: executionTime
         });
         
         // Mark level as completed if not already
@@ -60,18 +81,34 @@ export const GameProvider = ({ children }) => {
           const updatedCompletedLevels = [...completedLevels, currentLevel];
           setCompletedLevels(updatedCompletedLevels);
           setAnimateSuccess(true);
-          setTimeout(() => setAnimateSuccess(false), 2000);
+          
+          // Update best times
+          const updatedBestTimes = { ...bestTimes };
+          if (!bestTimes[currentLevel] || executionTime < bestTimes[currentLevel]) {
+            updatedBestTimes[currentLevel] = executionTime;
+            setBestTimes(updatedBestTimes);
+          }
           
           // Update user progress via API
           await updateUserProgress({
             completedLevels: updatedCompletedLevels,
-            currentLevel
+            currentLevel,
+            bestTimes: updatedBestTimes
           });
+          
+          // Auto-advance to the explanation after 1.5 seconds
+          setTimeout(() => {
+            setAnimateSuccess(false);
+            setShowExplanation(true);
+          }, 1500);
         }
       } else {
         setQueryResult({
           success: false,
-          message: data.message || "Your query doesn't match the expected solution. Try again or check the hint!"
+          message: data.message || "Your query didn't produce the expected results. Try again or check the hint!",
+          executionTime: executionTime,
+          result: data.result,
+          expectedResult: data.expectedResult
         });
       }
     } catch (error) {
@@ -91,11 +128,13 @@ export const GameProvider = ({ children }) => {
       setUserQuery('');
       setQueryResult(null);
       setShowHint(false);
+      setShowExplanation(false);
       
       // Update user progress via API
       await updateUserProgress({
         completedLevels,
-        currentLevel: nextLevel
+        currentLevel: nextLevel,
+        bestTimes
       });
     }
   };
@@ -106,12 +145,22 @@ export const GameProvider = ({ children }) => {
     setUserQuery('');
     setQueryResult(null);
     setShowHint(false);
+    setShowExplanation(false);
     
     // Update user progress via API
     await updateUserProgress({
       completedLevels,
-      currentLevel: levelId
+      currentLevel: levelId,
+      bestTimes
     });
+  };
+
+  // Close explanation and either move to next level or stay on current level based on user choice
+  const handleCloseExplanation = (moveToNext) => {
+    setShowExplanation(false);
+    if (moveToNext) {
+      goToNextLevel();
+    }
   };
 
   const value = {
@@ -126,9 +175,15 @@ export const GameProvider = ({ children }) => {
     completedLevels,
     animateSuccess,
     loading,
+    showExplanation,
+    setShowExplanation,
+    queryExecutionTime,
+    executionTimes,
+    bestTimes,
     executeQuery: handleExecuteQuery,
     goToNextLevel,
-    goToLevel
+    goToLevel,
+    handleCloseExplanation
   };
 
   return (
