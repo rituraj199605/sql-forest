@@ -1,7 +1,7 @@
 // Service for game-related API calls
 import { fetchAPI } from './api';
 
-// Fetch all game levels from the backend
+// Fetch all main game levels from the backend
 export async function fetchLevels() {
   try {
     const levels = await fetchAPI('levels');
@@ -12,10 +12,27 @@ export async function fetchLevels() {
   }
 }
 
-// Fetch single level by ID
-export async function fetchLevelById(levelId) {
+// Fetch all sub-levels from the backend
+export async function fetchSubLevels() {
   try {
-    return await fetchAPI(`levels/${levelId}`);
+    const subLevels = await fetchAPI('sub-levels');
+    return subLevels.sort((a, b) => {
+      if (a.parentLevelId !== b.parentLevelId) {
+        return a.parentLevelId - b.parentLevelId;
+      }
+      return a.scenarioNumber - b.scenarioNumber;
+    });
+  } catch (error) {
+    console.error('Error fetching sub-levels:', error);
+    return [];
+  }
+}
+
+// Fetch single level by ID (can be main level or sub-level)
+export async function fetchLevelById(levelId, isSubLevel = false) {
+  try {
+    const endpoint = isSubLevel ? `sub-levels/${levelId}` : `levels/${levelId}`;
+    return await fetchAPI(endpoint);
   } catch (error) {
     console.error(`Error fetching level ${levelId}:`, error);
     return null;
@@ -47,12 +64,16 @@ export async function updateUserProgress(progressData) {
   }
 }
 
-// Execute a query for a specific level
-export async function executeQuery(levelId, query) {
+// Execute a query for a specific level or sub-level
+export async function executeQuery(levelId, query, isSubLevel = false) {
   try {
     return await fetchAPI('execute-query', {
       method: 'POST',
-      body: JSON.stringify({ levelId, query }),
+      body: JSON.stringify({ 
+        levelId, 
+        query,
+        isSubLevel 
+      }),
     });
   } catch (error) {
     console.error('Error executing query:', error);

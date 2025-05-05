@@ -5,12 +5,15 @@ import TableVisualization from '../ui/TableVisualization';
 import QueryEditor from '../ui/QueryEditor';
 import QueryResult from '../ui/QueryResult';
 import LevelExplanation from './LevelExplanation';
+import SubLevelSelector from './SubLevelSelector';
 import Mountain from '../../assets/svg/Mountain';
 import Check from '../../assets/svg/Check';
 
 function LearningSection() {
   const {
     currentLevelData,
+    currentMainLevel,
+    currentSubLevel,
     userQuery,
     setUserQuery,
     executeQuery,
@@ -18,9 +21,9 @@ function LearningSection() {
     showHint,
     setShowHint,
     showExplanation,
-    goToNextLevel,
     animateSuccess,
     completedLevels,
+    completedSubLevels,
     queryExecutionTime,
     bestTimes,
     handleCloseExplanation
@@ -44,7 +47,14 @@ function LearningSection() {
     return `${(timeMs / 1000).toFixed(2)}s`;
   };
 
-  const bestTimeForLevel = bestTimes[currentLevelData.id];
+  // Get the level ID based on whether we're viewing a main level or sub-level
+  const currentLevelId = currentSubLevel || currentMainLevel;
+  const bestTimeForLevel = bestTimes[currentLevelId];
+  
+  // Check if the current level is completed
+  const isLevelCompleted = currentSubLevel 
+    ? completedSubLevels.includes(currentSubLevel) 
+    : completedLevels.includes(currentMainLevel);
 
   return (
     <section className="grid grid-cols-1 gap-6">
@@ -55,10 +65,13 @@ function LearningSection() {
         </div>
         <div className="flex items-center mb-4">
           <div className="bg-peach-300 text-slate-800 rounded-full px-3 py-1 text-sm mr-3">
-            Level {currentLevelData.id}
+            {currentSubLevel 
+              ? `Level ${currentLevelData.parentLevelId}.${currentLevelData.scenarioNumber}` 
+              : `Level ${currentLevelData.id}`
+            }
           </div>
           <h2 className="text-2xl font-light text-slate-700">{currentLevelData.title}</h2>
-          {completedLevels.includes(currentLevelData.id) && (
+          {isLevelCompleted && (
             <div className="ml-auto">
               <div className="flex items-center justify-center bg-mint-100 text-mint-600 w-8 h-8 rounded-full">
                 <Check />
@@ -95,6 +108,9 @@ function LearningSection() {
         )}
       </div>
       
+      {/* Sub-Level Selector */}
+      <SubLevelSelector />
+      
       {/* Explanation modal that appears between levels */}
       {showExplanation && (
         <LevelExplanation 
@@ -119,6 +135,7 @@ function LearningSection() {
       {/* Query Result */}
       <QueryResult 
         queryResult={queryResult} 
+        executionTime={queryExecutionTime}
       />
     </section>
   );
